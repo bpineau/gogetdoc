@@ -136,7 +136,7 @@ func IdentDoc(id *ast.Ident, info *types.Info, pkg *packages.Package) (*Doc, err
 		return PackageDoc(pkg, p.Imported().Path())
 	}
 
-	nodes := pathEnclosingInterval(pkg, obj.Pos(), obj.Pos())
+	_, nodes := pathEnclosingInterval(pkg, obj.Pos(), obj.Pos())
 	if len(nodes) == 0 {
 		// special case - builtins
 		doc, decl := findInBuiltin(obj.Name(), obj, pkg)
@@ -229,35 +229,34 @@ func IdentDoc(id *ast.Ident, info *types.Info, pkg *packages.Package) (*Doc, err
 	return doc, nil
 }
 
-// pathEnclosingInterval returns ast.Node of the package that
+// pathEnclosingInterval returns the types.Info of the package and ast.Node that
 // contain source interval [start, end), and all the node's ancestors
-// up to the AST root. It searches the ast.Files of initPkg and
-// the packages it imports recursively until something is found.
+// up to the AST root.  It searches the ast.Files of initPkg and the packages it imports.
 //
 // Modified from golang.org/x/tools/go/loader.
-func pathEnclosingInterval(initPkg *packages.Package, start, end token.Pos) []ast.Node {
-	for _, f := range initPkg.Syntax {
-		if f.Pos() == token.NoPos {
-			// This can happen if the parser saw
-			// too many errors and bailed out.
-			// (Use parser.AllErrors to prevent that.)
-			continue
-		}
-		if !tokenFileContainsPos(initPkg.Fset.File(f.Pos()), start) {
-			continue
-		}
-		if path, _ := astutil.PathEnclosingInterval(f, start, end); path != nil {
-			return path
-		}
+func pathEnclosingInterval(initPkg *packages.Package, start, end token.Pos) (*types.Info, []ast.Node) {
+	pkgs := []*packages.Package{initPkg}
+	for _, pkg := range initPkg.Imports {
+		pkgs = append(pkgs, pkg)
 	}
 
-	for _, p := range initPkg.Imports {
-		if path := pathEnclosingInterval(p, start, end); path != nil {
-			return path
+	for _, pkg := range pkgs {
+		for _, f := range pkg.Syntax {
+			if f.Pos() == token.NoPos {
+				// This can happen if the parser saw
+				// too many errors and bailed out.
+				// (Use parser.AllErrors to prevent that.)
+				continue
+			}
+			if !tokenFileContainsPos(pkg.Fset.File(f.Pos()), start) {
+				continue
+			}
+			if path, _ := astutil.PathEnclosingInterval(f, start, end); path != nil {
+				return pkg.TypesInfo, path
+			}
 		}
 	}
-
-	return nil
+	return nil, nil
 }
 
 func tokenFileContainsPos(f *token.File, pos token.Pos) bool {
