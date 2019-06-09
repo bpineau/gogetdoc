@@ -12,7 +12,7 @@ import (
 )
 
 func builtinPackage() *doc.Package {
-	pkgs, err := packages.Load(&packages.Config{Mode: packages.LoadFiles}, "builtin")
+	pkgs, err := packages.Load(&packages.Config{Mode: packages.NeedFiles | packages.NeedName}, "builtin")
 	if err != nil {
 		log.Fatalf("error getting metadata of builtin: %v", err)
 	}
